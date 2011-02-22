@@ -1,0 +1,3 @@
+[submodule "examples/zaa_multi"]
+	path = examples/zaa_multi
+	url = git@github.com:ZaaLabs/ZaaMulti.git

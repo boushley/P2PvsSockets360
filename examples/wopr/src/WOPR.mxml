@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   creationComplete="onCreationComplete(event)">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setTimeout;
+			
+			import mx.events.FlexEvent;
+			import mx.utils.StringUtil;
+			
+			private const HR:String = "-------------------------------------------------------------------";
+			
+			[Bindable] private var _running:Boolean = false;
+			
+			private var _sockets:Dictionary = new Dictionary(true);
+			private var _server:ServerSocket = new ServerSocket();
+			
+			private var _flushTimer:Timer = new Timer(50);
+			
+			protected function onCreationComplete(event:FlexEvent):void
+			{
+				_flushTimer.addEventListener(TimerEvent.TIMER, onFlushTick);
+				_flushTimer.start();
+				
+				onStart();
+			}
+			
+			private function onStart(event:MouseEvent=null):void
+			{
+				if(!_running)
+				{
+					traceOut("Starting Server: "+portNum.value);
+					try
+					{
+						_server = new ServerSocket();
+						_server.bind(portNum.value, "127.0.0.1");
+					}
+					catch(e:Error)
+					{
+						traceOut("Error occured: "+e);
+						return;
+					}
+					_server.listen();
+					_server.addEventListener(ServerSocketConnectEvent.CONNECT, onConnect);
+					_running = true;
+				}
+				else
+				{
+					traceOut("Stopping Server");
+					_server.close();
+					_server.removeEventListener(ServerSocketConnectEvent.CONNECT, onConnect);
+					_running = false;
+				}
+			}
+			
+			private function onConnect(event:ServerSocketConnectEvent):void
+			{
+				traceOut("onConnect");
+				var socket:Socket = event.socket;
+				_sockets[socket] = {loggedIn: false, flushQueue: []};
+				socket.addEventListener(ProgressEvent.SOCKET_DATA, onSocketData);
+				socket.addEventListener(Event.CLOSE, onDisconnect);
+				
+				socket.writeMultiByte("\u001B[2J", "iso-8859-1");
+				socket.flush();
+				
+				socket.writeUTFBytes("LOGON: ");
+				socket.flush();
+			}
+			
+			private function onDisconnect(event:Event):void
+			{
+				traceOut("onDisconnect: "+event.target);
+				delete _sockets[Socket(event.target)];
+			}
+			
+			private function onSocketData(event:ProgressEvent):void
+			{
+				var command:String = StringUtil.trim(Socket(event.target).readUTFBytes(event.bytesLoaded));
+				traceOut("onSocketData: "+command);
+				
+				var socket:Socket = Socket(event.target);
+				
+				if(!_sockets[socket].loggedIn)
+				{
+					switch(command.toUpperCase())
+					{
+						case "JOSHUA":
+							sendString(socket, "GREETINGS PROFESSOR FALKEN.\n");
+							_sockets[socket].loggedIn = true;
+							break;
+						case "HELP":
+						case "HELP LOGON":
+							socket.writeUTFBytes("HELP NOT AVAILABLE.\n--CONNECTION TERMINATED--\n");
+							socket.flush();
+							disconnect(socket);
+							break;
+						default:
+							socket.writeUTFBytes("IDENTIFICATION NOT RECOGNIZED BY SYSTEM.\n--CONNECTION TERMINATED--\n");
+							socket.flush();
+							disconnect(socket);
+					}
+					
+				}
+				else
+				{
+					switch(command.toUpperCase())
+					{
+						case "EXIT":
+							disconnect(socket);
+							break;
+						case "HELLO":
+							sendString(socket, "HOW ARE YOU FEELING TODAY?\n");
+							break;
+						case "I AM FINE. HOW ARE YOU?":
+							sendString(socket, "EXCELLENT. IT'S BEEN A LONG TIME.\n");
+							sendString(socket, "CAN YOU EXPLAIN THE REMOVAL OF YOUR USER ACCOUNT ON 6/23/73?\n");
+							break;
+						case "HELP GAMES":
+							sendString(socket, "'GAMES' REFERS TO MODELS, SIMULATIONS AND GAMES WHICH HAVE");
+							sendString(socket, " TACTICAL AND STRATEGIC APPLICATIONS\n");
+							break;
+						case "LIST GAMES":
+							listGames(socket);
+							break;
+						case "HELP SYSTEM":
+							sendString(socket, "HELP GAMES\nLIST GAMES\nEXIT\n");
+							break;
+						case "PEOPLE SOMETIMES MAKE MISTAKES":
+							sendString(socket, "YES THEY DO. SHALL WE PLAY A GAME?\n");
+							break;
+						case "LOVE TO. HOW ABOUT GLOBAL THERMONUCLEAR WAR":
+							sendString(socket, "WOULDN'T YOU PREFER A GOOD GAME OF CHESS?\n");
+							break;
+						case "LATER. LET'S PLAY GLOBAL THERMONUCLEAR WAR":
+							sendString(socket, "FINE\n");
+							break;
+						default:
+							socket.writeUTFBytes("Unknown command: "+command+"\n");
+							socket.flush();
+					}
+				}
+			}
+			
+			private function listGames(socket:Socket):void
+			{
+				sendString(socket, "FALKEN'S MAZE\n");
+				sendString(socket, "BLACK JACK\n");
+				sendString(socket, "GIN RUMMY\n");
+				sendString(socket, "HEARTS\n");
+				sendString(socket, "BRIDGE\n");
+				sendString(socket, "CHECKERS\n");
+				sendString(socket, "CHESS\n");
+				sendString(socket, "POKER\n");
+				sendString(socket, "FIGHTER COMBAT\n");
+				sendString(socket, "GUERILLA ENGAGEMENT\n");
+				sendString(socket, "DESERT WARFARE\n");
+				sendString(socket, "AIR-TO-GROUND ACTIONS\n");
+				sendString(socket, "THEATERWIDE TACTICAL WARFARE\n");
+				sendString(socket, "THEATERWIDE BIOTOXIC AND CHEMICAL WARFARE\n\n");
+				sendString(socket, "GLOBAL THERMONUCLEAR WAR\n");
+			}
+			
+			private function onDebug(e:MouseEvent):void
+			{
+				traceOut("Debug Output\n" + HR);
+				traceOut("bound: " + _server.bound);
+				traceOut("listening: " + _server.listening);
+				traceOut("port: " + _server.localPort);
+				traceOut("address: " + _server.localAddress + "\n" + HR);
+			}
+			
+			private function sendString(socket:Socket, value:String):void
+			{
+				_sockets[socket].flushQueue = _sockets[socket].flushQueue.concat(value.split(""));
+			}
+			
+			private function disconnect(socket:Socket):void
+			{
+				traceOut("Disconnecting Socket");
+				socket.close();
+				delete _sockets[socket];
+			}
+			
+			private function onFlushTick(event:TimerEvent):void
+			{
+				for (var socket:Object in _sockets)
+				{
+					var flushQueue:Array = _sockets[socket].flushQueue;
+					
+					if(flushQueue.length <= 0)
+					{
+						continue;
+					}
+					
+					var char:String = flushQueue.shift();
+					
+					try
+					{
+						socket.writeUTFBytes(char);
+						socket.flush();
+					}
+					catch(e:Error)
+					{
+						flushQueue = [];
+						traceOut("Send Error");
+					}
+				}
+			}
+			
+			private function traceOut(value:*):void
+			{
+				if(!value) value = "null"; 
+				
+				trace(value);
+				output.appendText(value.toString()+"\n");
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:Panel title="Console" width="100%" height="100%">
+		<s:TextArea id="output" width="100%" height="100%" borderVisible="false" editable="false" fontFamily="Monaco" />
+		<s:controlBarContent>
+			<s:Button id="startBtn" label="{!_running ? 'Start' : 'Stop'}" click="onStart(event)" />
+			<s:Button id="debugBtn" label="Debug" click="onDebug(event)" />
+			<s:NumericStepper id="portNum" value="9999" stepSize="1" minimum="0" maximum="65535"/>
+		</s:controlBarContent>
+	</s:Panel>
+	
+</s:WindowedApplication>
