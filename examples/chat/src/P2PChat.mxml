@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" applicationComplete="connect()">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			private const SERVER:String = "rtmfp://p2p.rtmfp.net/";
+			private const DEVKEY:String = "35944f70ce73b441a659ae99-72ad3ec751e9";
+			
+			private var nc:NetConnection;
+			private var netGroup:NetGroup;
+			
+			[Bindable]
+			private var user:String;
+			
+			[Bindable]
+			private var connected:Boolean = false;
+
+            /**
+             * Create our net connection into the P2P system.
+             *
+             * "The NetConnection class creates a two-way connection between a client and a server.
+             * The client can be a Flash Player or AIR application. The server can be a web server,
+             * Flash Media Server, an application server running Flash Remoting, or the Adobe Stratus
+             * service."
+             *
+             * So in this case we're creating a connection to a Cirrus server.
+             */
+			private function connect():void{
+				nc = new NetConnection();
+				nc.addEventListener(NetStatusEvent.NET_STATUS,netStatus);
+				nc.connect(SERVER+DEVKEY);	
+			}
+
+            /**
+             * This event callback is used to handle any changes in the net status.
+             *
+             * This allows us to connect to our NetGroup after we have connected with our
+             * NetConnection.  We also use this to handle members of the Group posting.
+             *
+             * @param event The NetStatusEvent representing the status change.
+             */
+			private function netStatus(event:NetStatusEvent):void{
+				write(event.info.code);
+				
+				switch(event.info.code){
+					case "NetConnection.Connect.Success":
+						setupGroup();
+						break;
+					
+					case "NetGroup.Connect.Success":
+						connected = true;
+						
+						break;
+					
+					case "NetGroup.Posting.Notify":
+						receiveMessage(event.info.message);
+						break;
+				}
+			}
+
+            /**
+             * In RTMFP we have groups that we are a part of (since its P2P), so here
+             * we setup which group we'ld like to join.
+             */
+			private function setupGroup():void{
+				var groupspec:GroupSpecifier = new GroupSpecifier("myGroup/g1");
+				groupspec.serverChannelEnabled = true;
+				groupspec.postingEnabled = true;
+				
+				trace("Groupspec: "+groupspec.groupspecWithAuthorizations());
+				
+				netGroup = new NetGroup(nc,groupspec.groupspecWithAuthorizations());
+				netGroup.addEventListener(NetStatusEvent.NET_STATUS,netStatus);
+			
+				
+				user = "user"+Math.round(Math.random()*10000);
+			}
+
+            /**
+             * This actually creates our message and broadcasts it out to the group with a
+             * post.  Post sends the message to the entire group.  Messages sent to post are
+             * serialized with AMF and propagated through the group.  *Messages should be unique,
+             * otherwise propagation can fail.
+             */
+			private function sendMessage():void{
+				
+				var message:Object = new Object();
+				message.sender = netGroup.convertPeerIDToGroupAddress(nc.nearID);
+				message.user = txtUser.text;
+				message.text = txtMessage.text;
+				
+				
+				netGroup.post(message);
+				receiveMessage(message);
+				
+				txtMessage.text = "";
+			}
+
+            /**
+             * This is the handler for a NetStatus event of type NetGroup.Posting.Notify, this
+             * signals that an object/message has been posted to the group.  Here we are receiving
+             * the inbound posting from another client in the P2P Group.
+             *
+             * @param message The deserialized object that was sent by the client.
+             */
+			private function receiveMessage(message:Object):void{
+				write(message.user+": "+message.text);
+			}
+
+            /**
+             * This is a simple helper function for writing messages into the main text display.
+             * 
+             * @param txt The text to write.
+             */
+			private function write(txt:String):void{
+				txtHistory.text += txt+"\n";
+			}
+
+
+		]]>
+	</fx:Script>
+	<s:TextArea left="10" right="10" top="10" bottom="40" id="txtHistory"/>
+	<s:TextInput x="10" id="txtUser" text="{user}" bottom="10"/>
+	<s:TextInput left="145" right="88" id="txtMessage" bottom="10" enter="sendMessage()"/>
+	<s:Button label="Send" click="sendMessage()" enabled="{connected}" bottom="10" right="10"/>
+	
+</s:Application>
