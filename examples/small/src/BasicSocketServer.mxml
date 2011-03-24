@@ -21,9 +21,18 @@
             server.listen();
 
             // Lets print out where we're at
-            print("Listening at: " + server.localAddress + ":" + server.localPort);
+            // This part isn't as important, just finding possible addresses for this machine
+            var interfaces:Vector.<NetworkInterface> = NetworkInfo.networkInfo.findInterfaces();
+            print("Socket Connected to Server, possible addresses: ");
+            for each (var networkInterface:NetworkInterface in interfaces)
+            {
+                for each (var address:InterfaceAddress in networkInterface.addresses)
+                {
+                    print("    " + address.address + ":" + server.localPort);
+                }
+            }
         }
-        
+
         //_____________________________________________________________________
         //	Event Listeners
         //_____________________________________________________________________
