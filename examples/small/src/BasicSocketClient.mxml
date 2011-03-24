@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark"
+    xmlns:mx="library://ns.adobe.com/flex/mx" >
+
+    <s:layout><s:VerticalLayout/></s:layout>
+
+    <fx:Script>
+        <![CDATA[
+        var socket:Socket;
+
+        protected function start():void
+        {
+            // If we already have a socket, lets close it
+            if (socket)
+            {
+                socket.close();
+                print("Closed old socket");
+            }
+
+            // Lets setup the socket with the information provided
+            var host:String = addressInput.text;
+            var port:int = parseInt(portInput.text);
+            socket = new Socket(host, port);
+
+            // Add the event listeners
+            socket.addEventListener(ProgressEvent.SOCKET_DATA, onSocketData);
+            socket.addEventListener(Event.CONNECT, onSocketConnect);
+            socket.addEventListener(Event.CLOSE, onSocketClose);
+        }
+
+        protected function sendMessage():void
+        {
+            // If we haven't connected yet bail out
+            if (!socket) return;
+
+            // Now lets just send the message to the server
+            print("Sending message: " + messageInput.text);
+            socket.writeUTFBytes(messageInput.text);
+            messageInput.text = "";
+
+            // Lets force the socket to send the message now
+            socket.flush();
+        }
+
+        //_____________________________________________________________________
+        //  Socket Event Listeners
+        //_____________________________________________________________________
+        protected function onSocketData(event:ProgressEvent):void
+        {
+            print("Just received bytes from the server!");
+            print("Message Received: " + socket.readUTFBytes(socket.bytesAvailable));
+        }
+
+        protected function onSocketClose(event:Event):void
+        {
+            print("Socket closed");
+        }
+
+        protected function onSocketConnect(event:Event):void
+        {
+            print("Connected to server");
+        }
+
+        //_____________________________________________________________________
+        //  Utility Function
+        //_____________________________________________________________________
+
+        protected function print(message:String):void
+        {
+            output.text += message + "\n";
+        }
+        ]]>
+    </fx:Script>
+
+
+    <s:TextArea id="output" width="100%" height="100%" />
+    <s:HGroup>
+        <s:Label text="Host Address:"/>
+        <s:TextInput id="addressInput"/>
+        <s:Label text="Port:" />
+        <s:TextInput id="portInput" />
+        <s:Button label="Connect" click="start()" />
+    </s:HGroup>
+    <s:HGroup>
+        <s:Label text="Message:"/>
+        <s:TextInput id="messageInput" />
+        <s:Button label="Send" click="sendMessage()"/>
+    </s:HGroup>
+
+</s:Application>
