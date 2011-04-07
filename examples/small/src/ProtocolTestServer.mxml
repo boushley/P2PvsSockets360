@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark"
+    xmlns:mx="library://ns.adobe.com/flex/mx" creationComplete="init()">
+
+    <fx:Script>
+        <![CDATA[
+        protected const PORT:int = 3030;
+
+        protected var server:ServerSocket;
+
+        protected function init():void
+        {
+            // Create the socket server
+            server = new ServerSocket();
+
+            // Lets add our event listener
+            server.addEventListener(ServerSocketConnectEvent.CONNECT, onServerSocketConnect);
+
+            // Alright, now lets get the server listening
+            server.bind(PORT);
+            server.listen();
+
+            // Lets print out where we're at
+            // This part isn't as important, just finding possible addresses for this machine
+            var interfaces:Vector.<NetworkInterface> = NetworkInfo.networkInfo.findInterfaces();
+            print("Socket Connected to Server, possible addresses: ");
+            for each (var networkInterface:NetworkInterface in interfaces)
+            {
+                for each (var address:InterfaceAddress in networkInterface.addresses)
+                {
+                    print("    " + address.address + ":" + server.localPort);
+                }
+            }
+        }
+
+        //_____________________________________________________________________
+        //	Event Listeners
+        //_____________________________________________________________________
+
+        protected function onServerSocketConnect(event:ServerSocketConnectEvent):void
+        {
+            print("Socket Connected to Server: " + event.socket.localAddress);
+
+            // Add listeners to this socket
+            event.socket.addEventListener(ProgressEvent.SOCKET_DATA, onSocketData);
+            event.socket.addEventListener(Event.CLOSE, onSocketClose);
+        }
+
+        protected function onSocketClose(event:Event):void
+        {
+            print("Socket Disconnected: " + event.target.localAddress);
+        }
+
+        protected function onSocketData(event:ProgressEvent):void
+        {
+            var socket:Socket = event.target as Socket;
+            print("Socket Data recieved from: " + socket.localAddress);
+
+            // Just read the bytes as a UTF String
+            var message:String = socket.readUTFBytes(socket.bytesAvailable);
+            print("The message received was: " + message);
+
+            // Other read methods available:
+            // socket.readBoolean();
+            // socket.readByte();
+            // socket.readBytes(byteArray, offset, length);
+            // socket.readDouble();
+            // socket.readFloat();
+            // socket.readInt();
+            // socket.readMultiByte(length, charSet);
+            // socket.readObject();
+            // socket.readShort();
+            // socket.readUnsignedByte();
+            // socket.readUnsignedInt();
+            // socket.readUnsignedShort();
+
+            // Alright, now lets just send back the message they sent to us with a FOOBAR attached
+            print("Returning message with FOOBAR attached");
+            socket.writeUTFBytes(message + "FOOBAR!");
+            socket.flush();
+        }
+
+
+        //_____________________________________________________________________
+        //  Utility Print Funciton
+        //_____________________________________________________________________
+
+        protected function print(message:String):void
+        {
+            output.text += message + "\n";
+        }
+        ]]>
+    </fx:Script>
+
+    <s:TextArea id="output" width="100%" height="100%" editable="false" />
+
+</s:WindowedApplication>

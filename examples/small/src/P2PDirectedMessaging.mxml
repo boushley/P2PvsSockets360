@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark"
+          xmlns:mx="library://ns.adobe.com/flex/mx" preinitialize="onPreInit()">
+
+    <fx:Script>
+        <![CDATA[
+
+        protected function onSendClick():void
+        {
+            var peerId:String = "peerId";
+            var msg:Object = new Object();
+            msg.destination = netGroup.convertPeerIDToGroupAddress(peerId);
+            msg.value = "Hello I am message from #1";
+
+            // This will send the message to my neighbor who is nearest to the destination.
+            // If the destination and I are directly connected, then it will go straight to them,
+            // however, if the neighbor is not connected to me then it will go to one of my neighbors,
+            // who will need to pass the message along.
+            netGroup.sendToNearest(msg, msg.dest);
+        }
+
+        function netStatus(event:NetStatusEvent):void
+        {
+            switch (event.info.code)
+            {
+                case "NetGroup.SendTo.Notify":
+
+                    // This flag lets us know if we are the target of the message or not
+                    if (event.info.fromLocal)
+                    {
+                        trace("Got Message: " + event.info.message.value);
+                    }
+                    else
+                    {
+                        // We then have to proactively forward the message to our nearest neighbor
+                        // so that the message can continue on.  This is a security problem if this
+                        // communication should be private at all.
+                        // Encryption could give some safety to this step, but a misbehaving client
+                        // could still destroy the P2P mesh.
+                        trace("Forwarding Message: " + event.info.message.value);
+                        netGroup.sendToNearest(event.info.message, event.info.message.destination);
+                    }
+                    break;
+
+                case "NetConnection.Connect.Success":
+                    setupGroup();
+                    break;
+
+                case "NetGroup.Connect.Success":
+                    connected = true;
+                    break;
+            }
+        }
+
+
+        protected function onPreInit():void
+        {
+            nc = new NetConnection();
+            nc.addEventListener(NetStatusEvent.NET_STATUS,netStatus);
+            nc.connect(SERVER+DEVKEY);
+        }
+
+        private function setupGroup():void
+        {
+            var groupspec:GroupSpecifier = new GroupSpecifier("myGroup/g1");
+            groupspec.serverChannelEnabled = true;
+            groupspec.postingEnabled = true;
+
+            trace("Groupspec: " + groupspec.groupspecWithAuthorizations());
+
+            netGroup = new NetGroup(nc, groupspec.groupspecWithAuthorizations());
+            netGroup.addEventListener(NetStatusEvent.NET_STATUS, netStatus);
+        }
+
+        private var nc:NetConnection;
+        private var netGroup:NetGroup;
+
+        private const SERVER:String = "rtmfp://p2p.rtmfp.net/";
+        private const DEVKEY:String = "35944f70ce73b441a659ae99-72ad3ec751e9";
+
+        [Bindable]
+        private var connected:Boolean = false;
+        ]]>
+    </fx:Script>
+
+    <s:Button click="onSendClick()"/>
+
+</s:VGroup>
