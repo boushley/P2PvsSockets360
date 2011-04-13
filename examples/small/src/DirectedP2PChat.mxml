@@ -6,8 +6,12 @@
         <!-- Place non-visual elements (e.g., services, value objects) here -->
     </fx:Declarations>
 
+    <s:layout><s:HorizontalLayout/></s:layout>
+
     <fx:Script>
 		<![CDATA[
+        import mx.collections.ArrayCollection;
+
         private const SERVER:String = "rtmfp://p2p.rtmfp.net/";
         private const DEVKEY:String = "35944f70ce73b441a659ae99-72ad3ec751e9";
 
@@ -19,6 +23,9 @@
 
         [Bindable]
         private var connected:Boolean = false;
+
+        [Bindable]
+        protected var users:ArrayCollection = new ArrayCollection();
 
         /**
          * Create our net connection into the P2P system.
@@ -57,13 +64,47 @@
 
                 case "NetGroup.Connect.Success":
                     connected = true;
-
                     break;
 
+                case "NetGroup.Neighbor.Connect":
+                    write("My Address: " + netGroup.convertPeerIDToGroupAddress(nc.nearID));
+                    broadcastInfo();
+                    break;
+
+                // Received a broadcast message (chat to all users)
                 case "NetGroup.Posting.Notify":
                     receiveMessage(event.info.message);
                     break;
+
+                // Received a direct message
+                case "NetGroup.SendTo.Notify":
+                    // This flag lets us know if we are the target of the message or not
+                    if (event.info.fromLocal)
+                    {
+                        receiveMessage(event.info.message);
+                    }
+                    else
+                    {
+                        // We then have to proactively forward the message to our nearest neighbor
+                        // so that the message can continue on.  This is a security problem if this
+                        // communication should be private at all.
+                        // Encryption could give some safety to this step, but a misbehaving client
+                        // could still destroy the P2P mesh.
+                        write("Forwarding Message");
+                        netGroup.sendToNearest(event.info.message, event.info.message.destination);
+                    }
+                    break;
+
             }
+        }
+
+        protected function broadcastInfo():void
+        {
+            var userInfo:DirectedChatUser = new DirectedChatUser();
+            userInfo.userName = user;
+            userInfo.peerId = nc.nearID;
+
+            netGroup.post(userInfo);
         }
 
         /**
@@ -72,9 +113,12 @@
          */
         private function setupGroup():void
         {
-            var groupspec:GroupSpecifier = new GroupSpecifier("myGroup/g1");
+            var groupspec:GroupSpecifier = new GroupSpecifier("myGroup/g2");
+
+            // Setup the group permissions
             groupspec.serverChannelEnabled = true;
             groupspec.postingEnabled = true;
+            groupspec.routingEnabled = true;
 
             trace("Groupspec: " + groupspec.groupspecWithAuthorizations());
 
@@ -93,14 +137,23 @@
          */
         private function sendMessage():void
         {
-
             var message:Object = new Object();
             message.sender = netGroup.convertPeerIDToGroupAddress(nc.nearID);
             message.user = txtUser.text;
             message.text = txtMessage.text;
 
 
-            netGroup.post(message);
+             var targetUser:DirectedChatUser = DirectedChatUser(userSelector.selectedItem);
+            if (targetUser)
+            {
+                message.destination = netGroup.convertPeerIDToGroupAddress(targetUser.peerId);
+                var result:String = netGroup.sendToNearest(message, message.destination);
+                write("Send To Nearest Result: " + result);
+            }
+            else
+            {
+                netGroup.post(message);
+            }
             receiveMessage(message);
 
             txtMessage.text = "";
@@ -115,7 +168,18 @@
          */
         private function receiveMessage(message:Object):void
         {
-            write(message.user + ": " + message.text);
+            if (message is DirectedChatUser)
+            {
+                users.addItem(message);
+            }
+            else if (message.hasOwnProperty("destination"))
+            {
+                write(message.user + " PM: " + message.text);
+            }
+            else
+            {
+                write(message.user + ": " + message.text);
+            }
         }
 
         /**
@@ -129,9 +193,18 @@
         }
         ]]>
 	</fx:Script>
-    <s:TextArea left="10" right="10" top="10" bottom="40" id="txtHistory"/>
-    <s:Label x="10" id="txtUser" text="{user}" bottom="10"/>
-    <s:TextInput left="145" right="88" id="txtMessage" bottom="10" enter="sendMessage()"/>
-    <s:Button label="Send" click="sendMessage()" enabled="{connected}" bottom="10" right="10"/>
+
+    <mx:DataGrid id="userSelector" dataProvider="{users}" height="100%">
+        <mx:columns>
+            <mx:DataGridColumn headerText="User" dataField="userName" />
+        </mx:columns>
+    </mx:DataGrid>
+
+    <s:Group height="100%">
+        <s:TextArea left="10" right="10" top="10" bottom="40" id="txtHistory"/>
+        <s:TextInput x="10" id="txtUser" text="{user}" bottom="10"/>
+        <s:TextInput left="145" right="88" id="txtMessage" bottom="10" enter="sendMessage()"/>
+        <s:Button label="Send" click="sendMessage()" enabled="{connected}" bottom="10" right="10"/>
+    </s:Group>
 
 </s:Application>

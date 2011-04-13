@@ -35,10 +35,12 @@
 
             // Now lets just send the message to the server
             print("Sending message: " + messageInput.text);
+
             var byte:int = 0 | (1 << 2) | (0 << 1) | (1);
             socket.writeByte(byte);
             socket.writeInt(1234);
             socket.writeUTFBytes(messageInput.text);
+
             // Force all of that to go on out now
             socket.flush();
 

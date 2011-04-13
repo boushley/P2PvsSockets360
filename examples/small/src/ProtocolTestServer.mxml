@@ -56,28 +56,15 @@
             var socket:Socket = event.target as Socket;
             print("Socket Data recieved from: " + socket.localAddress);
 
-            // Just read the bytes as a UTF String
-            var message:String = socket.readUTFBytes(socket.bytesAvailable);
-            print("The message received was: " + message);
+            var msg:ProtocolTestMessage = new ProtocolTestMessage();
+            var packedBools:int = socket.readByte();
+            msg.first = (packedBools & 4) == 4;
+            msg.second = (packedBools & 2) == 2;
+            msg.third = (packedBools & 1) == 1;
+            msg.intVal = socket.readInt();
+            msg.message = socket.readUTFBytes(socket.bytesAvailable);
 
-            // Other read methods available:
-            // socket.readBoolean();
-            // socket.readByte();
-            // socket.readBytes(byteArray, offset, length);
-            // socket.readDouble();
-            // socket.readFloat();
-            // socket.readInt();
-            // socket.readMultiByte(length, charSet);
-            // socket.readObject();
-            // socket.readShort();
-            // socket.readUnsignedByte();
-            // socket.readUnsignedInt();
-            // socket.readUnsignedShort();
-
-            // Alright, now lets just send back the message they sent to us with a FOOBAR attached
-            print("Returning message with FOOBAR attached");
-            socket.writeUTFBytes(message + "FOOBAR!");
-            socket.flush();
+            print("The message received was: " + msg.message);
         }
 
 
